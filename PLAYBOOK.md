@@ -2,15 +2,20 @@
 
 ## Introduction
 
-This playbook serves as a comprehensive guide for working with the `terraform-cloud-modules-iac` repository and its integration with the main `cicd` repository. It provides detailed instructions, best practices, and workflows for developing, testing, and using the reusable Terraform modules.
+This playbook serves as a comprehensive guide for working with the `terraform-cloud-modules-iac` repository. It provides detailed instructions, best practices, and workflows for developing, testing, and using the reusable Terraform modules across different teams and projects.
 
 In our infrastructure setup, we use a specific approach where:
 
-1. The `terraform-cloud-modules-iac` repository contains all the reusable Terraform modules
-2. These modules are copied to the `modules` directory in the main `cicd` repository
-3. Terraform configurations in `core-infrastructure/azure/scripts` reference these local modules using relative paths (`../../modules/<Service>`)
+1. The `terraform-cloud-modules-iac` repository serves as a central library containing all reusable Terraform modules
+2. Each team or project has its own infrastructure repository (e.g., `core-infrastructure`, `app-infrastructure`, etc.)
+3. Teams copy the modules they need from `terraform-cloud-modules-iac` to their own repository's `modules` directory
+4. Terraform configurations in each team's repository reference these local modules using relative paths (`../../modules/<Service>`)
 
-This approach simplifies dependency management and CI/CD integration while maintaining the benefits of modular infrastructure code.
+This approach provides several benefits:
+- **Standardization**: All teams use the same well-tested modules
+- **Autonomy**: Teams can work independently without affecting others
+- **Simplified Dependency Management**: No need to manage Git references or versioning in the Terraform code
+- **Controlled Updates**: Teams can update modules on their own schedule
 
 ## Table of Contents
 
@@ -26,14 +31,18 @@ This approach simplifies dependency management and CI/CD integration while maint
 
 ## Repository Overview
 
-The `terraform-cloud-modules-iac` repository contains reusable Terraform modules for deploying infrastructure across multiple cloud providers, with a primary focus on Azure. These modules are designed to be copied to the `modules` directory in the main repository, rather than being referenced directly from Git.
+Our infrastructure is organized using a central module repository and multiple team-specific infrastructure repositories:
+
+1. **terraform-cloud-modules-iac**: The central repository containing all reusable Terraform modules for deploying infrastructure across multiple cloud providers, with a primary focus on Azure.
+
+2. **Team Infrastructure Repositories**: Each team maintains their own infrastructure repository (e.g., `core-infrastructure`, `app-infrastructure`, `data-platform`, etc.) that references modules from the central repository.
 
 ### Repository Structure
 
 ```
-# Module Repository Structure
+# Central Module Repository
 terraform-cloud-modules-iac/
-├── azure/                # Azure modules
+├── azure/                # Azure modules (source of truth)
 │   └── storage/          # Azure Storage Account module
 │       ├── main.tf       # Main module configuration
 │       ├── variables.tf  # Input variable definitions
@@ -44,25 +53,57 @@ terraform-cloud-modules-iac/
 ├── README.md             # Repository documentation
 └── PLAYBOOK.md           # This comprehensive guide
 
-# Main Repository Structure
-cicd/
-├── core-infrastructure/  # Core infrastructure configurations
-│   ├── azure/            # Azure-specific configurations
-│   │   ├── env/          # Environment-specific variables
-│   │   │   └── dev/      # Development environment
-│   │   │       └── dev.tfvars  # Variable values for dev
-│   │   └── scripts/      # Terraform configurations
-│   │       ├── main.tf   # Main configuration referencing modules
-│   │       ├── variables.tf  # Variable definitions
-│   │       ├── provider.tf   # Provider configuration
-│   │       └── backend.tf    # Backend configuration
-├── modules/              # Local copy of modules from terraform-cloud-modules-iac
-│   └── storage/          # Storage module copied from terraform-cloud-modules-iac
-│       ├── main.tf       # Main module configuration
-│       ├── variables.tf  # Input variable definitions
+# Example Team Infrastructure Repository (e.g., core-infrastructure)
+team-infrastructure-repo/
+├── azure/                # Azure-specific configurations
+│   ├── env/              # Environment-specific variables
+│   │   └── dev/          # Development environment
+│   │       └── dev.tfvars  # Variable values for dev
+│   └── scripts/          # Terraform configurations
+│       ├── main.tf       # Main configuration referencing modules
+│       ├── variables.tf  # Variable definitions
+│       ├── provider.tf   # Provider configuration
+│       └── backend.tf    # Backend configuration
+└── modules/              # Local copy of modules from terraform-cloud-modules-iac
+    └── storage/          # Storage module
+        ├── main.tf       # Main module configuration
+        ├── variables.tf  # Input variable definitions
+        └── outputs.tf    # Output definitions
+
+# Another Team Infrastructure Repository Example (e.g., app-infrastructure)
+another-team-repo/
+├── terraform/
+│   ├── environments/     # Environment-specific configurations
+│   │   ├── dev/          # Development environment
+│   │   │   └── terraform.tfvars  # Variable values for dev
+│   │   └── prod/         # Production environment
+│   │       └── terraform.tfvars  # Variable values for prod
+│   └── main/             # Main Terraform configurations
+│       ├── main.tf       # Main configuration referencing modules
+│       ├── variables.tf  # Variable definitions
 │       └── outputs.tf    # Output definitions
-└── terraform-cloud-modules-iac/  # Original module repository (reference only)
+└── modules/              # Local copy of modules from terraform-cloud-modules-iac
+    └── storage/          # Storage module copied from central repository
 ```
+
+### Key Repository Components
+
+1. **terraform-cloud-modules-iac**: This central repository contains all the reusable Terraform modules organized by cloud provider. It serves as the "source of truth" for module development.
+
+2. **Team Infrastructure Repositories**: Each team's repository contains:
+   - Environment-specific variables and configurations
+   - Terraform configurations that reference modules
+   - Local copies of modules from the central repository
+
+### Example: Storage Account Module Usage
+
+Here's how different teams might use the Storage Account module:
+
+- **Core Infrastructure Team**: May use it for storing Terraform state files or shared resources
+- **Application Team**: May use it for application data storage or backups
+- **Data Platform Team**: May use it as part of a data lake solution
+
+Each team copies the module from the central repository to their own `modules` directory and references it in their Terraform configurations.
 
 ## Module Architecture
 
@@ -110,9 +151,9 @@ Each module follows a consistent structure:
 
 ```mermaid
 graph LR
-    A[core-infrastructure/azure/scripts/main.tf] --> B[Module Reference]
-    B --> C[modules/storage]
-    B --> D[Future Modules]
+    A[Team Repository Terraform Configuration] --> B[Module Reference]
+    B --> C[Team Repository modules/storage]
+    B --> D[Other Modules]
 
     C --> E[Azure Storage Account]
     C --> F[Storage Containers]
@@ -143,15 +184,14 @@ graph LR
 
 ### Development Environment Setup
 
-1. **Clone Both Repositories**
+1. **Clone the Module Repository**
 
    ```powershell
-   # Clone the main repository
-   git clone https://github.com/your-org/cicd.git
-   cd cicd
-
-   # Clone the modules repository (if not already included)
+   # Clone the central module repository
    git clone https://github.com/your-org/terraform-cloud-modules-iac.git
+
+   # Clone your team's infrastructure repository
+   git clone https://github.com/your-org/your-team-infrastructure.git
    ```
 
 2. **Create a Feature Branch in the Module Repository**
@@ -174,24 +214,27 @@ graph LR
    $env:ARM_TENANT_ID = "your-tenant-id"
    ```
 
-4. **Sync Module to Main Repository**
+4. **Sync Module to Your Team's Repository**
 
-   After developing or updating a module in the `terraform-cloud-modules-iac` repository, copy it to the `modules` directory in the main repository:
+   After developing or updating a module in the `terraform-cloud-modules-iac` repository, copy it to the `modules` directory in your team's infrastructure repository:
 
    ```powershell
-   # Navigate to the root of the main repository
-   cd ../
+   # Navigate to your team's infrastructure repository
+   cd ../your-team-infrastructure
+
+   # Create the module directory if it doesn't exist
+   mkdir -p modules/storage
 
    # Copy the module
-   Copy-Item -Path "terraform-cloud-modules-iac/azure/storage" -Destination "modules/storage" -Recurse -Force
+   Copy-Item -Path "../terraform-cloud-modules-iac/azure/storage/*" -Destination "modules/storage/" -Recurse -Force
    ```
 
 ### Creating a New Module
 
-1. **Create Module Directory Structure in the Module Repository**
+1. **Create Module Directory Structure in the Central Repository**
 
    ```powershell
-   # Navigate to the module repository
+   # Navigate to the module repository root
    cd terraform-cloud-modules-iac
 
    # Create the module directory
@@ -209,17 +252,17 @@ graph LR
    New-Item -ItemType File -Name README.md
    ```
 
-3. **Copy to Main Repository After Development**
+3. **Copy to Your Team's Repository After Development**
 
    ```powershell
-   # Navigate to the root of the main repository
-   cd ../../../..
+   # Navigate to your team's infrastructure repository
+   cd ../../../your-team-infrastructure
 
-   # Create the module directory in the main repository if it doesn't exist
+   # Create the module directory if it doesn't exist
    mkdir -p modules/new-module-name
 
    # Copy the module files
-   Copy-Item -Path "terraform-cloud-modules-iac/azure/new-module-name/*" -Destination "modules/new-module-name/" -Recurse -Force
+   Copy-Item -Path "../terraform-cloud-modules-iac/azure/new-module-name/*" -Destination "modules/new-module-name/" -Recurse -Force
    ```
 
 3. **Implement Module Logic**
@@ -243,44 +286,120 @@ graph LR
 
 ## Module Usage Patterns
 
-### Repository Structure for Local Module References
+### Repository Structure for Module References
 
-In this project, we use a specific structure where modules are copied into the `modules` directory within the main repository, rather than referenced directly from Git. This approach provides several benefits:
+In our organization, we use a specific structure where modules are maintained in the central `terraform-cloud-modules-iac` repository and referenced from each team's infrastructure repository. This approach provides several benefits:
 
 1. **Simplified Dependency Management**: No need to manage Git references or versioning in the Terraform code
-2. **Offline Development**: Ability to work without network access to the module repository
-3. **Version Control**: Each environment can use a specific version of modules by committing them to the repository
-4. **CI/CD Integration**: Easier integration with CI/CD pipelines that don't need to clone multiple repositories
+2. **Offline Development**: Ability to work without network access to external module repositories
+3. **Version Control**: Each team can use a specific version of modules by copying them to their local modules directory
+4. **CI/CD Integration**: Easier integration with team-specific CI/CD pipelines
 
 ```mermaid
 graph TD
-    A[Repository Root] --> B[core-infrastructure]
-    A --> C[terraform-cloud-modules-iac]
-    A --> D[modules]
+    A[terraform-cloud-modules-iac] --> C[azure]
+    C --> C1[storage]
+    C1 --> C11[main.tf]
+    C1 --> C12[variables.tf]
+    C1 --> C13[outputs.tf]
 
-    B --> B1[azure]
-    B1 --> B2[env]
-    B1 --> B3[scripts]
+    Z1[Team 1 Repository] --> B1[azure]
+    Z1 --> D1[modules]
 
-    B2 --> B21[dev]
-    B21 --> B211[dev.tfvars]
+    Z2[Team 2 Repository] --> B2[terraform]
+    Z2 --> D2[modules]
 
-    B3 --> B31[main.tf]
-    B3 --> B32[variables.tf]
-    B3 --> B33[provider.tf]
-    B3 --> B34[backend.tf]
+    B1 --> B11[scripts]
+    B11 --> B111[main.tf]
 
-    D --> D1[storage]
-    D1 --> D11[main.tf]
-    D1 --> D12[variables.tf]
-    D1 --> D13[outputs.tf]
+    B2 --> B21[main]
+    B21 --> B211[main.tf]
 
-    C --> C1[azure]
-    C1 --> C11[storage]
+    D1 --> D11[storage]
+    D2 --> D21[storage]
 
-    style D fill:#bbf,stroke:#33f,stroke-width:2px
+    B111 -- "references" --> D11
+    B211 -- "references" --> D21
+    C1 -- "copied to" --> D11
+    C1 -- "copied to" --> D21
+
+    style A fill:#fbb,stroke:#f33,stroke-width:2px
+    style C fill:#fbb,stroke:#f33,stroke-width:2px
+    style C1 fill:#fbb,stroke:#f33,stroke-width:2px
+    style Z1 fill:#bfb,stroke:#3f3,stroke-width:2px
+    style Z2 fill:#bfb,stroke:#3f3,stroke-width:2px
     style D1 fill:#bbf,stroke:#33f,stroke-width:2px
-    style B3 fill:#fbb,stroke:#f33,stroke-width:2px
+    style D11 fill:#bbf,stroke:#33f,stroke-width:2px
+    style D2 fill:#bbf,stroke:#33f,stroke-width:2px
+    style D21 fill:#bbf,stroke:#33f,stroke-width:2px
+```
+
+#### Key Components:
+
+1. **terraform-cloud-modules-iac/azure**: This directory contains the original Terraform modules organized by cloud provider. It serves as the "source of truth" for module development.
+
+2. **Team Repository/modules**: Each team's repository contains a `modules` directory with copies of the modules from the central repository that are referenced by their Terraform configurations.
+
+3. **Team Repository Terraform Configurations**: Each team organizes their Terraform configurations according to their needs, but all reference modules from their local `modules` directory using relative paths.
+
+#### Module Reference Flow:
+
+1. Modules are developed and maintained in the central `terraform-cloud-modules-iac/azure/storage` repository
+2. Teams copy the modules they need to their own repository's `modules` directory
+3. Team Terraform configurations reference the modules using relative paths (e.g., `source = "../../modules/storage"`)
+
+#### Example: Storage Account Module Usage in Different Teams
+
+**Core Infrastructure Team**:
+```hcl
+# core-infrastructure/azure/scripts/main.tf
+module "terraform_state_storage" {
+  source = "../../modules/storage"
+
+  storage_account_name = "tfstate${var.environment}"
+  resource_group_name  = azurerm_resource_group.rg.name
+  location             = var.location
+
+  containers = [
+    {
+      name        = "tfstate"
+      access_type = "private"
+    }
+  ]
+
+  tags = {
+    Environment = var.environment
+    Purpose     = "Terraform State"
+  }
+}
+```
+
+**Application Team**:
+```hcl
+# app-infrastructure/terraform/main/main.tf
+module "app_storage" {
+  source = "../../modules/storage"
+
+  storage_account_name = "appdata${var.environment}"
+  resource_group_name  = azurerm_resource_group.app_rg.name
+  location             = var.location
+
+  containers = [
+    {
+      name        = "uploads"
+      access_type = "blob"
+    },
+    {
+      name        = "backups"
+      access_type = "private"
+    }
+  ]
+
+  tags = {
+    Environment = var.environment
+    Application = "WebApp"
+  }
+}
 ```
 
 ### Local Module Reference Pattern
@@ -398,7 +517,7 @@ graph TD
 1. **Create Test Directory in the Module Repository**
 
    ```powershell
-   # Navigate to the module repository
+   # Navigate to the module repository root
    cd terraform-cloud-modules-iac
 
    # Create test directory
@@ -514,7 +633,7 @@ graph LR
     style G fill:#bbf,stroke:#33f,stroke-width:2px
 ```
 
-1. **Create a Release Branch in the Module Repository**
+1. **Create a Release Branch**
 
    ```powershell
    cd terraform-cloud-modules-iac
@@ -549,17 +668,19 @@ graph LR
    - Breaking changes
    - Migration instructions
 
-6. **Sync Released Modules to Main Repository**
+6. **Sync Released Modules to Team Repositories**
+
+   For each team that uses the modules:
 
    ```powershell
-   # Navigate to the main repository root
-   cd ../cicd
+   # Navigate to the team's infrastructure repository
+   cd ../team-infrastructure
 
    # Create a branch for the module update
    git checkout -b update-modules-v1.0.0
 
    # Copy the released modules
-   Copy-Item -Path "../terraform-cloud-modules-iac/azure/storage" -Destination "modules/storage" -Recurse -Force
+   Copy-Item -Path "../terraform-cloud-modules-iac/azure/storage/*" -Destination "modules/storage/" -Recurse -Force
    # Add more modules as needed
 
    # Commit and push the changes
@@ -570,25 +691,29 @@ graph LR
    # Create a pull request to merge the changes
    ```
 
+   This process should be repeated for each team that uses the modules, or automated through a CI/CD pipeline.
+
 ## Contribution Guidelines
 
 ### Contribution Workflow
 
 ```mermaid
 graph TD
-    A[Fork Module Repository] --> B[Create Feature Branch]
+    A[Fork terraform-cloud-modules-iac] --> B[Create Feature Branch]
     B --> C[Implement Changes]
     C --> D[Write Tests]
     D --> E[Update Documentation]
     E --> F[Submit Pull Request]
     F --> G[Code Review]
     G --> H[Merge to Main]
-    H --> I[Sync to Main Repository]
+    H --> I[Release New Version]
+    I --> J[Sync to Team Repositories]
 
     style C fill:#bbf,stroke:#33f,stroke-width:2px
     style D fill:#bbf,stroke:#33f,stroke-width:2px
     style E fill:#bbf,stroke:#33f,stroke-width:2px
     style I fill:#bbf,stroke:#33f,stroke-width:2px
+    style J fill:#bbf,stroke:#33f,stroke-width:2px
 ```
 
 ### Pull Request Guidelines
