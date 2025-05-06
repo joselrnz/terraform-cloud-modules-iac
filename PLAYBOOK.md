@@ -26,8 +26,9 @@ This approach provides several benefits:
 5. [Testing Strategy](#testing-strategy)
 6. [Versioning and Releases](#versioning-and-releases)
 7. [Contribution Guidelines](#contribution-guidelines)
-8. [Troubleshooting](#troubleshooting)
-9. [Azure Module Reference](#azure-module-reference)
+8. [GitHub Actions and Workspace Integration](#github-actions-and-workspace-integration)
+9. [Troubleshooting](#troubleshooting)
+10. [Azure Module Reference](#azure-module-reference)
 
 ## Repository Overview
 
@@ -739,6 +740,167 @@ graph TD
    - Update module README.md
    - Add examples if appropriate
    - Document any new variables or outputs
+
+## GitHub Actions and Workspace Integration
+
+The infrastructure repositories include GitHub Actions workflows and reusable actions that automate the deployment process and handle common tasks. This section provides an overview of these components and how to use them.
+
+### Workflow Structure
+
+```mermaid
+graph TD
+    A[GitHub Actions Workflow] --> B[Checkout Repositories]
+    B --> C[Copy Modules]
+    C --> D[Security Scanning]
+    D --> E[Azure Login]
+    E --> F[Terraform Init]
+    F --> G[Terraform Plan]
+    G --> H[Terraform Apply]
+
+    I[Reusable Actions] --> J[add-storage-ip]
+    I --> K[remove-storage-ip]
+    I --> L[tf-env-bootstrap]
+
+    E -.-> J
+    H -.-> K
+    F -.-> L
+
+    style I fill:#bbf,stroke:#33f,stroke-width:2px
+    style J fill:#bbf,stroke:#33f,stroke-width:2px
+    style K fill:#bbf,stroke:#33f,stroke-width:2px
+    style L fill:#bbf,stroke:#33f,stroke-width:2px
+```
+
+### Main Deployment Workflow
+
+The `terraform-deploy.yml` workflow is the primary workflow for deploying infrastructure. It can be triggered manually with the following parameters:
+
+- **Environment**: The target environment (dev, prod, qa, sbx)
+- **Module Branch**: The branch to fetch from the terraform-cloud-modules-iac repository
+
+```yaml
+name: 'Terraform Deploy'
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+          - qa
+          - sbx
+      module_branch:
+        description: 'Branch to fetch from terraform-cloud-modules-iac'
+        required: false
+        default: 'develop'
+        type: string
+```
+
+The workflow performs the following steps:
+
+1. Checks out the team's infrastructure repository
+2. Checks out the terraform-cloud-modules-iac repository
+3. Copies modules to the correct location
+4. Runs security scanning tools (tfsec)
+5. Logs in to Azure
+6. Initializes Terraform with the correct backend configuration
+7. Validates the Terraform configuration
+8. Runs Terraform plan and apply
+
+### Reusable Actions
+
+The repository includes several reusable GitHub Actions that handle common tasks:
+
+#### 1. Add Storage IP Action
+
+This action adds the runner's IP address to an Azure Storage account's firewall rules, which is useful when the storage account has network restrictions.
+
+```yaml
+- name: Add Runner IP to Storage Firewall
+  uses: ./.github/actions/add-storage-ip
+  with:
+    environment: ${{ github.event.inputs.environment }}
+    storage-account-name: 'terraformstateclouddev'
+    resource-group-name: 'data-dp203'
+    azure_creds: ${{ env.CREDS }}
+```
+
+#### 2. Remove Storage IP Action
+
+This action removes the runner's IP address from an Azure Storage account's firewall rules after deployment.
+
+```yaml
+- name: Remove Runner IP from Storage Firewall
+  uses: ./.github/actions/remove-storage-ip
+  with:
+    environment: ${{ github.event.inputs.environment }}
+    storage-account-name: 'terraformstateclouddev'
+    resource-group-name: 'data-dp203'
+    azure_creds: ${{ env.CREDS }}
+    ip-address: ${{ steps.add-ip.outputs.ip-address }}
+```
+
+#### 3. Terraform Environment Bootstrap Action
+
+This action sets up the environment for Terraform operations, including creating resource groups and storage accounts if they don't exist.
+
+```yaml
+- name: Bootstrap Terraform Environment
+  uses: ./.github/actions/tf-env-bootstrap
+  with:
+    environment: ${{ github.event.inputs.environment }}
+    azure_creds: ${{ env.CREDS }}
+```
+
+### Workspace Template
+
+Each team's infrastructure repository should follow a consistent workspace structure to ensure compatibility with the GitHub Actions workflows:
+
+```
+team-infrastructure-repo/
+├── .github/
+│   ├── workflows/
+│   │   └── terraform-deploy.yml  # Main deployment workflow
+│   └── actions/
+│       ├── add-storage-ip/       # Action to add IP to storage firewall
+│       ├── remove-storage-ip/    # Action to remove IP from storage firewall
+│       └── tf-env-bootstrap/     # Action to bootstrap Terraform environment
+├── azure/
+│   ├── env/
+│   │   └── dev/
+│   │       └── dev.tfvars        # Environment-specific variables
+│   └── scripts/
+│       ├── main.tf               # Main Terraform configuration
+│       ├── variables.tf          # Variable definitions
+│       ├── provider.tf           # Provider configuration
+│       └── backend.tf            # Backend configuration
+└── modules/                      # Local copy of modules
+```
+
+### Using the Workflows
+
+To deploy infrastructure using the GitHub Actions workflow:
+
+1. Navigate to the "Actions" tab in your GitHub repository
+2. Select the "Terraform Deploy" workflow
+3. Click "Run workflow"
+4. Select the target environment from the dropdown
+5. Optionally, specify a different branch for the terraform-cloud-modules-iac repository
+6. Click "Run workflow" to start the deployment
+
+### Customizing Workflows for Your Team
+
+Teams can customize the workflows and actions to meet their specific needs:
+
+1. **Environment Variables**: Update the environment variables in the workflow to match your team's naming conventions
+2. **Backend Configuration**: Modify the backend configuration to use your team's storage account
+3. **Security Scanning**: Enable or disable security scanning tools based on your team's requirements
+4. **Additional Steps**: Add additional steps to the workflow for team-specific tasks
 
 ## Troubleshooting
 
