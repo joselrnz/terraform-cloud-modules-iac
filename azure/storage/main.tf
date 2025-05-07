@@ -12,7 +12,7 @@ resource "azurerm_storage_account" "this" {
   account_replication_type = var.account_replication_type
   account_kind             = var.account_kind
   access_tier              = var.access_tier
-  
+
   tags = var.tags
 
   blob_properties {
