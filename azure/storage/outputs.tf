@@ -29,3 +29,16 @@ output "containers" {
   description = "Map of containers"
   value       = { for c in azurerm_storage_container.this : c.name => c.id }
 }
+
+
+output "name" {
+  value = azurerm_storage_account.this.name
+}
+
+output "primary_blob_endpoint" {
+  value = azurerm_storage_account.this.primary_blob_endpoint
+}
+
+output "id" {
+  value = azurerm_storage_account.this.id
+}
