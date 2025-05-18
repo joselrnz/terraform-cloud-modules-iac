@@ -1,4 +1,3 @@
-output "role_assignment_id" {
-  description = "The ID of the role assignment"
-  value       = azurerm_role_assignment.this.id
+output "role_assignment_ids" {
+  value = [for r in azurerm_role_assignment.dynamic : r.id]
 }
