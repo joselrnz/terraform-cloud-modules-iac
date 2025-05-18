@@ -39,7 +39,7 @@ resource "azurerm_storage_account" "this" {
 resource "azurerm_storage_container" "this" {
   for_each              = { for container in var.containers : container.name => container }
   name                  = each.key
-  storage_account_name  = azurerm_storage_account.this.name
+  storage_account_id    = azurerm_storage_account.this.id
   container_access_type = each.value.access_type
 }
 
