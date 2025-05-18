@@ -26,10 +26,12 @@ output "secondary_access_key" {
 }
 
 output "containers" {
-  description = "Map of containers"
-  value       = { for c in azurerm_storage_container.this : c.name => c.id }
+  description = "Map of container names to IDs"
+  value = {
+    for name, container in azurerm_storage_container.this :
+    name => container.id
+  }
 }
-
 
 output "name" {
   value = azurerm_storage_account.this.name
