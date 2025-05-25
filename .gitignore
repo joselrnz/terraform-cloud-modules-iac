@@ -39,3 +39,5 @@ terraform.rc
 # Ignore environment folders
 env/
 **/env/
+local/
+**/local/

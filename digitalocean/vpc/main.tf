@@ -1,11 +1,11 @@
-# terraform {
-#   required_providers {
-#     digitalocean = {
-#       source  = "digitalocean/digitalocean"
-#       version = ">= 2.24"
-#     }
-#   }
-# }
+terraform {
+  required_providers {
+    digitalocean = {
+      source  = "digitalocean/digitalocean"
+      version = ">= 2.24"
+    }
+  }
+}
 
 # Main VPC resource
 resource "digitalocean_vpc" "vpc" {
@@ -85,7 +85,7 @@ resource "digitalocean_firewall" "vpc_firewall" {
     destination_addresses = ["0.0.0.0/0", "::/0"]
   }
 
-  tags = var.firewall_tags
+  # tags = var.firewall_tags
 }
 
 # Optional: Create a Load Balancer for Kubernetes services
@@ -123,14 +123,14 @@ resource "digitalocean_loadbalancer" "k8s_lb" {
   redirect_http_to_https = var.redirect_http_to_https
   enable_proxy_protocol  = var.enable_proxy_protocol
 
-  tags = var.lb_tags
+  # tags = var.lb_tags
 }
 
 # Optional: Reserve IP for Load Balancer
 resource "digitalocean_reserved_ip" "lb_ip" {
   count  = var.create_reserved_ip ? 1 : 0
   region = var.region
-  type   = "assign"
+  # type   = "assign"
   droplet_id = var.create_load_balancer ? digitalocean_loadbalancer.k8s_lb[0].id : null
 }
 

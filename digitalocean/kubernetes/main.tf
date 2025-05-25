@@ -1,13 +1,12 @@
-# terraform {
-#   required_providers {
-#     digitalocean = {
-#       source  = "digitalocean/digitalocean"
-#       version = ">= 2.24"
-#     }
-#   }
-# }
+terraform {
+  required_providers {
+    digitalocean = {
+      source  = "digitalocean/digitalocean"
+      version = ">= 2.24"
+    }
+  }
+}
 
- Main Kubernetes cluster resource
 resource "digitalocean_kubernetes_cluster" "k8s_cluster" {
   name     = var.cluster_name
   region   = var.region
