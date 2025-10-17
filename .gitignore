@@ -45,5 +45,8 @@ terraform.rc
 env/
 **/env/
 local/
-
 **/local/
+
+# Ignore deployment folders (user-specific deployments)
+do_deploy/
+*_deploy/

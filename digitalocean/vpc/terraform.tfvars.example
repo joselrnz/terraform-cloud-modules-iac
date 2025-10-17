@@ -1,0 +1,28 @@
+# VPC Configuration for web-app project
+# Copy this file to terraform.tfvars and customize
+
+# Basic VPC settings
+vpc_name        = "vpc-nyc-prod"
+region          = "nyc1"
+ip_range        = "10.167.40.0/16"
+vpc_description = "Production VPC for web-app project"
+
+# Firewall configuration
+create_firewall = true
+
+# SSH Access - IMPORTANT: Change to your IP for security!
+# Get your IP: curl ifconfig.me
+ssh_allowed_ips = ["0.0.0.0/0"]  # ⚠️ CHANGE THIS to ["YOUR_IP/32"]
+
+# Kubernetes API access (if using K8s)
+k8s_api_allowed_ips = ["0.0.0.0/0"]  # ⚠️ CHANGE THIS to ["YOUR_IP/32"]
+
+# Optional features
+create_load_balancer = false
+create_reserved_ip   = false
+create_staging_vpc   = false
+
+# Tags
+common_tags = ["terraform", "web-app", "production", "nyc"]
+firewall_tags = ["vpc-firewall", "web-app"]
+

@@ -7,60 +7,131 @@ terraform {
   }
 }
 
-resource "digitalocean_kubernetes_cluster" "k8s_cluster" {
-  name     = var.cluster_name
-  region   = var.region
-  version  = var.k8s_version
-  vpc_uuid = var.vpc_id
-
-  # High availability control plane (optional but recommended for production)
-  ha = var.enable_ha
-
-  # Auto-upgrade settings
-  auto_upgrade = var.auto_upgrade
-  
-  # Surge upgrade settings
-  surge_upgrade = var.surge_upgrade
-
-  # Main node pool
-  node_pool {
-    name       = var.pool_name
-    size       = var.node_size
-    node_count = var.node_count
-    
-    # Auto-scaling configuration
-    auto_scale = var.enable_autoscale
-    min_nodes  = var.min_nodes
-    max_nodes  = var.max_nodes
-    
-    # Labels and taints
-    labels = var.node_labels
-    tags   = var.node_tags
-  }
-
-  # Maintenance window
-  maintenance_policy {
-    start_time = var.maintenance_start_time
-    day        = var.maintenance_day
-  }
-
-  # Cluster tags
-  tags = var.cluster_tags
+# Data source to get existing SSH key
+data "digitalocean_ssh_key" "existing" {
+  count = var.existing_ssh_key_name != "" ? 1 : 0
+  name  = var.existing_ssh_key_name
 }
 
-# Additional node pool (optional)
-resource "digitalocean_kubernetes_node_pool" "additional_pool" {
-  count = var.create_additional_pool ? 1 : 0
+# Combine SSH keys
+locals {
+  ssh_key_ids = concat(
+    length(data.digitalocean_ssh_key.existing) > 0 ? [data.digitalocean_ssh_key.existing[0].id] : [],
+    var.additional_ssh_keys
+  )
+}
+
+# Droplet
+resource "digitalocean_droplet" "main" {
+  count = var.droplet_count
   
-  cluster_id = digitalocean_kubernetes_cluster.k8s_cluster.id
-  name       = var.additional_pool_name
-  size       = var.additional_pool_size
-  node_count = var.additional_pool_count
+  name   = var.droplet_count > 1 ? "${var.droplet_name}-${count.index + 1}" : var.droplet_name
+  image  = var.droplet_image
+  size   = var.droplet_size
+  region = var.region
   
-  auto_scale = var.additional_pool_autoscale
-  min_nodes  = var.additional_pool_min_nodes
-  max_nodes  = var.additional_pool_max_nodes
+  vpc_uuid = var.vpc_id
+  ssh_keys = local.ssh_key_ids
   
-  labels = var.additional_pool_labels
-  tags   = var.additional_pool_tags
+  monitoring        = var.enable_monitoring
+  backups           = var.enable_backups
+  ipv6              = var.enable_ipv6
+  droplet_agent     = true
+  graceful_shutdown = true
+
+  user_data = var.user_data != "" ? var.user_data : null
+  tags      = concat(var.droplet_tags, var.common_tags)
+  
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# Floating IP (optional)
+resource "digitalocean_floating_ip" "main" {
+  count  = var.create_floating_ip ? var.droplet_count : 0
+  region = var.region
+}
+
+resource "digitalocean_floating_ip_assignment" "main" {
+  count      = var.create_floating_ip ? var.droplet_count : 0
+  ip_address = digitalocean_floating_ip.main[count.index].ip_address
+  droplet_id = digitalocean_droplet.main[count.index].id
+}
+
+# Volume (optional)
+resource "digitalocean_volume" "main" {
+  count = var.create_volume ? var.droplet_count : 0
+  
+  name                    = var.droplet_count > 1 ? "${var.volume_name}-${count.index + 1}" : var.volume_name
+  region                  = var.region
+  size                    = var.volume_size
+  description             = var.volume_description
+  initial_filesystem_type = "ext4"
+  tags                    = concat(var.volume_tags, var.common_tags)
+}
+
+resource "digitalocean_volume_attachment" "main" {
+  count      = var.create_volume ? var.droplet_count : 0
+  droplet_id = digitalocean_droplet.main[count.index].id
+  volume_id  = digitalocean_volume.main[count.index].id
+}
+
+# Firewall
+resource "digitalocean_firewall" "droplet_firewall" {
+  count = var.create_firewall ? 1 : 0
+  
+  name        = "${var.droplet_name}-firewall"
+  droplet_ids = digitalocean_droplet.main[*].id
+  
+  # SSH - Restrict to your IP!
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "22"
+    source_addresses = var.ssh_allowed_ips
+  }
+  
+  # HTTP
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "80"
+    source_addresses = var.http_allowed_ips
+  }
+  
+  # HTTPS
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "443"
+    source_addresses = var.https_allowed_ips
+  }
+  
+  # Custom rules
+  dynamic "inbound_rule" {
+    for_each = var.custom_inbound_rules
+    content {
+      protocol         = inbound_rule.value.protocol
+      port_range       = inbound_rule.value.port_range
+      source_addresses = inbound_rule.value.source_addresses
+    }
+  }
+  
+  # Outbound - Allow all
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "1-65535"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+  
+  outbound_rule {
+    protocol              = "udp"
+    port_range            = "1-65535"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+  
+  outbound_rule {
+    protocol              = "icmp"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+  
+  tags = concat(var.firewall_tags, var.common_tags)
 }
