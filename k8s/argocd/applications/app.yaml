@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  # Source: Your GitHub repository
+  source:
+    repoURL: https://github.com/joselrnz/terraform-cloud-modules-iac.git
+    targetRevision: develop  # Using develop branch
+    path: k8s/base/apps/app
+  
+  # Destination: Your Kubernetes cluster
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cloud
+  
+  # Sync policy: How ArgoCD should sync
+  syncPolicy:
+    automated:
+      prune: true      # Delete resources that are no longer in Git
+      selfHeal: true   # Automatically sync if cluster state drifts from Git
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true  # Create namespace if it doesn't exist
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  # Ignore differences in certain fields
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas  # Ignore replica count (for HPA)
+

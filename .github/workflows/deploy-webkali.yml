@@ -1,0 +1,79 @@
+name: Deploy WebKali to Production
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/webkali/**'
+      - '.github/workflows/deploy-webkali.yml'
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/webkali
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/webkali
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Update Kubernetes manifest
+        run: |
+          # Get the short SHA
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          IMAGE_TAG="main-${SHORT_SHA}"
+          
+          # Update the image tag in deployment.yaml
+          sed -i "s|image: ghcr.io/joselrnz/webkali:.*|image: ghcr.io/joselrnz/webkali:${IMAGE_TAG}|g" k8s/base/apps/webkali/deployment.yaml
+          
+          # Commit and push the change
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add k8s/base/apps/webkali/deployment.yaml
+          git commit -m "chore: update webkali image to ${IMAGE_TAG}" || echo "No changes to commit"
+          git push || echo "No changes to push"
+      
+      - name: Trigger ArgoCD Sync (Optional)
+        run: |
+          echo "ArgoCD will automatically detect the change and sync"
+          echo "Or you can manually sync from ArgoCD UI: https://argo.joselrnz.com"
+

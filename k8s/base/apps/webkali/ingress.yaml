@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webkali
+  namespace: cloud
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: kube-system-cloudflare-warp@kubernetescrd,kube-system-security-headers@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: webkali.joselrnz.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: webkali
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - webkali.joselrnz.com
+    secretName: cloudflare-origin-cert
+

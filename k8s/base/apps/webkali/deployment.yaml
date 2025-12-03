@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webkali
+  namespace: cloud
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webkali
+  template:
+    metadata:
+      labels:
+        app: webkali
+    spec:
+      imagePullSecrets:
+      - name: ghcr-pull-secret
+      containers:
+      - name: webkali
+        image: ghcr.io/joselrnz/webkali:latest
+        ports:
+        - containerPort: 80
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: SITE_URL
+          value: "https://webkali.joselrnz.com"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
