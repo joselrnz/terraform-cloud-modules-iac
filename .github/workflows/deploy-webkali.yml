@@ -11,7 +11,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/webkali
+  IMAGE_NAME: ${{ github.repository_owner }}/webkali-portfolio
 
 jobs:
   build-and-deploy:
@@ -61,9 +61,9 @@ jobs:
           # Get the short SHA
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           IMAGE_TAG="main-${SHORT_SHA}"
-          
+
           # Update the image tag in deployment.yaml
-          sed -i "s|image: ghcr.io/joselrnz/webkali:.*|image: ghcr.io/joselrnz/webkali:${IMAGE_TAG}|g" k8s/base/apps/webkali/deployment.yaml
+          sed -i "s|image: ghcr.io/joselrnz/webkali-portfolio:.*|image: ghcr.io/joselrnz/webkali-portfolio:${IMAGE_TAG}|g" k8s/base/apps/webkali/deployment.yaml
           
           # Commit and push the change
           git config --global user.name "GitHub Actions"
